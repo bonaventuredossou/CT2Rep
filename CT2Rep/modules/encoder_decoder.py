@@ -55,6 +55,18 @@ class Transformer(nn.Module):
         return self.decoder(self.tgt_embed(tgt), hidden_states, src_mask, tgt_mask, memory)
 
 
+class TransformerEncoder(nn.Module):
+    def __init__(self, encoder, src_embed):
+        super(TransformerEncoder, self).__init__()
+        self.encoder = encoder
+        self.src_embed = src_embed
+
+    def forward(self, src, src_mask):
+        return self.encode(src, src_mask)
+
+    def encode(self, src, src_mask):
+        return self.encoder(self.src_embed(src), src_mask)
+
 class Encoder(nn.Module):
     def __init__(self, layer, N):
         super(Encoder, self).__init__()
@@ -385,3 +397,92 @@ class EncoderDecoder(AttModel):
             ys = torch.cat([state[0][0], it.unsqueeze(1)], dim=1)
         out = self.model.decode(memory, mask, ys, subsequent_mask(ys.size(1)).to(memory.device))
         return out[:, -1], [ys.unsqueeze(0)]
+
+
+
+
+class EncoderDecoderPretrained(AttModel):
+
+    def make_enc_model(self):
+        c = copy.deepcopy
+        attn = MultiHeadedAttention(self.num_heads, self.d_model)
+        ff = PositionwiseFeedForward(self.d_model, self.d_ff, self.dropout)
+        position = PositionalEncoding(self.d_model, self.dropout)
+        enc_model = TransformerEncoder(Encoder(EncoderLayer(self.d_model, c(attn), c(ff), self.dropout), self.num_layers), lambda x: x)
+
+        for p in enc_model.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p)
+        return enc_model
+
+    def __init__(self, args, tokenizer):
+        super(EncoderDecoderPretrained, self).__init__(args, tokenizer)
+        self.args = args
+        self.num_layers = args.num_layers
+        self.d_model = args.d_model
+        self.d_ff = args.d_ff
+        self.num_heads = args.num_heads
+        self.dropout = args.dropout
+        self.rm_num_slots = args.rm_num_slots
+        self.rm_num_heads = args.rm_num_heads
+        self.rm_d_model = args.rm_d_model
+        self.pretrained_decoder = tokenizer.get_pretrained_components()[0]
+
+        tgt_vocab = self.vocab_size + 1
+
+        self.model = self.make_enc_model()
+        self.logit = nn.Linear(args.d_model, tgt_vocab)
+
+    def init_hidden(self, bsz):
+        return []
+
+    def _prepare_feature(self, fc_feats, att_feats, att_masks):
+
+        att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(att_feats, att_masks)
+        memory = self.model.encode(att_feats, att_masks)
+
+        return fc_feats[..., :1], att_feats[..., :1], memory, att_masks
+
+    def _prepare_feature_forward(self, att_feats, att_masks=None, seq=None):
+        att_feats, att_masks = self.clip_att(att_feats, att_masks)
+        att_feats = pack_wrapper(self.att_embed, att_feats, att_masks)
+
+        if att_masks is None:
+            att_masks = att_feats.new_ones(att_feats.shape[:2], dtype=torch.long)
+        att_masks = att_masks.unsqueeze(-2)
+
+        if seq is not None:
+            # crop the last one
+            seq = seq[:, :-1]
+            seq_mask = (seq.data > 0)
+            seq_mask[:, 0] += True
+
+            seq_mask = seq_mask.unsqueeze(-2)
+            seq_mask = seq_mask & subsequent_mask(seq.size(-1)).to(seq_mask)
+        else:
+            seq_mask = None
+
+        return att_feats, seq, att_masks, seq_mask
+
+    def _forward(self, fc_feats, att_feats, seq, att_masks=None):
+
+        att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(att_feats, att_masks, seq)
+        encodings = self.model(att_feats, att_masks)
+        
+        src, tgt, src_mask, tgt_mask
+        att_feats, seq, att_masks, seq_mask
+        
+        decodings = self.pretrained_decoder(inputs_embeds=encodings, attention_mask=seq_mask, return_dict=True, labels=seq)
+        out = decodings.logits
+        outputs = F.log_softmax(self.logit(out), dim=-1)
+        return outputs
+
+    def core(self, it, fc_feats_ph, att_feats_ph, memory, state, mask):
+
+        if len(state) == 0:
+            ys = it.unsqueeze(1)
+        else:
+            ys = torch.cat([state[0][0], it.unsqueeze(1)], dim=1)
+        out = self.model.decode(memory, mask, ys, subsequent_mask(ys.size(1)).to(memory.device))
+        return out[:, -1], [ys.unsqueeze(0)]
+

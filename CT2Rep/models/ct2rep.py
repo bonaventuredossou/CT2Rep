@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 
 from modules.visual_extractor import VisualExtractor
-from modules.encoder_decoder import EncoderDecoder
+from modules.encoder_decoder import EncoderDecoder, EncoderDecoderPretrained
 from ctvit import CTViT
 
 class CT2RepModel(nn.Module):
@@ -25,7 +25,7 @@ class CT2RepModel(nn.Module):
                 )
 
         self.visual_extractor = VisualExtractor(model, args)
-        self.encoder_decoder = EncoderDecoder(args, tokenizer)
+        self.encoder_decoder = EncoderDecoderPretrained # EncoderDecoder(args, tokenizer)
         self.forward = self.forward_ct2rep
 
     def __str__(self):

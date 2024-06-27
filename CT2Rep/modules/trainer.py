@@ -187,7 +187,7 @@ class Trainer(BaseTrainer):
 
                with open(gts,"w",newline="") as gtss:
                 with open(res,"w",newline="") as ress:
-                   for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.test_dataloader):
+                   for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.val_dataloader): # dunno why they used the test set here # (self.test_dataloader)
                         images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(
                             self.device), reports_masks.to(self.device)
                         output = self.model(images, mode='sample')

@@ -47,9 +47,13 @@ class AttModel(CaptionModel):
         self.att_feat_size = args.d_vf
         self.att_hid_size = args.d_model
 
-        self.bos_idx = args.bos_idx
-        self.eos_idx = args.eos_idx
-        self.pad_idx = args.pad_idx
+        self.bos_idx = tokenizer.pretrained_tokenizer.bos_token_id
+        self.eos_idx = tokenizer.pretrained_tokenizer.eos_token_id
+        self.pad_idx = tokenizer.pretrained_tokenizer.pad_token_id
+
+        # self.bos_idx = args.bos_idx
+        # self.eos_idx = args.eos_idx
+        # self.pad_idx = args.pad_idx
 
         self.use_bn = args.use_bn
 

@@ -40,16 +40,17 @@ class CTReportDataset(Dataset):
         self.cast_num_frames_fn = partial(cast_num_frames, frames = num_frames) if force_num_frames else identity
 
     def load_accession_text(self, xlsx_file):
-        df = pd.read_excel(xlsx_file)
+        # df = pd.read_excel(xlsx_file)
+        df = pd.read_csv(xlsx_file[0])
         accession_to_text = {}
         for index, row in df.iterrows():
-            accession_to_text[row['AccessionNo']] = row["Findings_EN"]
+            accession_to_text[row['AccessionNo']] = row["Findings_EN"].lower()
         return accession_to_text
 
 
     def prepare_samples(self):
         samples = []
-        for patient_folder in tqdm.tqdm(glob.glob(os.path.join(self.data_folder, '*'))):
+        for patient_folder in tqdm.tqdm(glob.glob(os.path.join(self.data_folder[0], '*'))):
             for accession_folder in glob.glob(os.path.join(patient_folder, '*')):
                 accession_number = os.path.basename(accession_folder)
                 if accession_number not in self.accession_to_text:
@@ -57,7 +58,7 @@ class CTReportDataset(Dataset):
 
                 impression_text = self.accession_to_text[accession_number]
 
-                for nii_file in glob.glob(os.path.join(accession_folder, '*.npz')):
+                for nii_file in glob.glob(os.path.join(accession_folder, '*.nii.gz')):
                     # Construct the input text with the included metadata
                     if impression_text == "Not given.":
                         impression_text=""

@@ -22,7 +22,8 @@ def parse_agrs():
 
 
     # Model settings (for Transformer)
-    parser.add_argument('--d_model', type=int, default=512, help='the dimension of Transformer.')
+    # parser.add_argument('--d_model', type=int, default=512, help='the dimension of Transformer.')
+    parser.add_argument('--d_model', type=int, default=4096, help='the dimension of Transformer.')
     parser.add_argument('--d_ff', type=int, default=512, help='the dimension of FFN.')
     parser.add_argument('--d_vf', type=int, default=512, help='the dimension of the patch features.')
     parser.add_argument('--num_heads', type=int, default=8, help='the number of heads in Transformer.')
@@ -53,8 +54,8 @@ def parse_agrs():
     # Trainer settings
     parser.add_argument('--n_gpu', type=int, default=1, help='the number of gpus to be used.')
     parser.add_argument('--epochs', type=int, default=100, help='the number of training epochs.')
-    parser.add_argument('--save_dir', type=str, default='results/', help='the patch to save the models.')
-    parser.add_argument('--record_dir', type=str, default='records/', help='the patch to save the results of experiments')
+    parser.add_argument('--save_dir', type=str, default='/network/scratch/b/bonaventure.dossou/probe_medical/models_v2/', help='the patch to save the models.')
+    parser.add_argument('--record_dir', type=str, default='/network/scratch/b/bonaventure.dossou/probe_medical/models_v2/records/', help='the patch to save the results of experiments')
     parser.add_argument('--save_period', type=int, default=1, help='the saving period.')
     parser.add_argument('--monitor_mode', type=str, default='max', choices=['min', 'max'], help='whether to max or min the metric.')
     parser.add_argument('--monitor_metric', type=str, default='BLEU_4', help='the metric to be monitored.')
@@ -73,11 +74,14 @@ def parse_agrs():
     parser.add_argument('--gamma', type=float, default=0.1, help='the gamma of the learning rate scheduler.')
 
     # Others
-    parser.add_argument('--xlsxfile', type=str, default="../example_data/CT2Rep/data_reports_example.xlsx", help='reports xlsx file.')
-    parser.add_argument('--trainfolder', type=str, default="../example_data/CT2Rep/train", help='train folder.')
-    parser.add_argument('--validfolder', type=str, default="../example_data/CT2Rep/valid", help='valid folder.')
+    parser.add_argument('--xlsxfile_train', type=str, default="/network/scratch/b/bonaventure.dossou/probe_medical/reports/train/train_reports.csv", help='reports xlsx train file.')
+    parser.add_argument('--xlsxfile_val', type=str, default="/network/scratch/b/bonaventure.dossou/probe_medical/reports/validation/validation_reports.csv", help='reports xlsx val file.')
+
+    parser.add_argument('--trainfolder', type=str, default="/network/scratch/b/bonaventure.dossou/probe_medical/reports/train/data_volumes/dataset/train", help='train folder.')
+    parser.add_argument('--validfolder', type=str, default="/network/scratch/b/bonaventure.dossou/probe_medical/reports/validation/data_volumes/dataset/valid", help='valid folder.')
 
     parser.add_argument('--resume', type=str, help='whether to resume the training from existing checkpoints.')
+    parser.add_argument('--llama_model', type=str, default="epfl-llm/meditron-7b", help='LLM model to use.')
 
 
     args = parser.parse_args()
@@ -90,12 +94,12 @@ def main():
 
     # create tokenizer
     tokenizer = Tokenizer(args)
-
-    train_ds = CTReportDataset(args,data_folder=args.trainfolder, xlsx_file=args.xlsxfile, tokenizer=tokenizer, num_frames=2)
-    valid_ds  = CTReportDataset(args,data_folder=args.validfolder, xlsx_file=args.xlsxfile, tokenizer=tokenizer, num_frames=2)
+    
+    train_ds = CTReportDataset(args,data_folder=args.trainfolder, xlsx_file=args.xlsxfile_train, tokenizer=tokenizer, num_frames=2)
+    valid_ds  = CTReportDataset(args,data_folder=args.validfolder, xlsx_file=args.xlsxfile_val, tokenizer=tokenizer, num_frames=2)
 
     # create data loader
-    train_dataloader = R2DataLoader(args,train_ds, tokenizer, split='train', shuffle=True)
+    train_dataloader = R2DataLoader(args, train_ds, tokenizer, split='train', shuffle=True)
     val_dataloader = R2DataLoader(args, valid_ds, tokenizer, split='val', shuffle=False)
 
     # build model architecture
