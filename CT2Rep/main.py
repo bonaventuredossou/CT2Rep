@@ -11,13 +11,16 @@ from models.ct2rep import CT2RepModel
 from modules.data_ct import CTReportDataset
 
 def parse_agrs():
+
+    # Example fromm teh repository
+    # python main.py --max_seq_length 300 --threshold 10 --epochs 100 --save_dir results/test_ct2rep/ --step_size 1 --gamma 0.8 --batch_size 1 --d_vf 512
     parser = argparse.ArgumentParser()
 
     # Data loader settings
-    parser.add_argument('--max_seq_length', type=int, default=200, help='the maximum sequence length of the reports.')
-    parser.add_argument('--threshold', type=int, default=3, help='the cut off frequency for the words.')
+    parser.add_argument('--max_seq_length', type=int, default=300, help='the maximum sequence length of the reports.')
+    parser.add_argument('--threshold', type=int, default=10, help='the cut off frequency for the words.')
     parser.add_argument('--num_workers', type=int, default=2, help='the number of workers for dataloader.')
-    parser.add_argument('--batch_size', type=int, default=2, help='the number of samples for a batch')
+    parser.add_argument('--batch_size', type=int, default=1, help='the number of samples for a batch')
     parser.add_argument('--dataset_name', type=str, default='ct_dataset', help='dataset name.')
 
 
@@ -70,8 +73,8 @@ def parse_agrs():
 
     # Learning Rate Scheduler
     parser.add_argument('--lr_scheduler', type=str, default='StepLR', help='the type of the learning rate scheduler.')
-    parser.add_argument('--step_size', type=int, default=50, help='the step size of the learning rate scheduler.')
-    parser.add_argument('--gamma', type=float, default=0.1, help='the gamma of the learning rate scheduler.')
+    parser.add_argument('--step_size', type=int, default=1, help='the step size of the learning rate scheduler.')
+    parser.add_argument('--gamma', type=float, default=0.8, help='the gamma of the learning rate scheduler.')
 
     # Others
     parser.add_argument('--xlsxfile_train', type=str, default="/network/scratch/b/bonaventure.dossou/probe_medical/reports/train/train_reports.csv", help='reports xlsx train file.')
