@@ -102,7 +102,7 @@ class BaseTrainer(object):
                 "Warning: The number of GPU\'s configured to use is {}, but only {} are available " "on this machine.".format(
                     n_gpu_use, n_gpu))
             n_gpu_use = n_gpu
-        device = torch.device('cuda:0' if n_gpu_use > 0 else 'cpu')
+        device = torch.device('cuda' if n_gpu_use > 0 else 'cpu')
         list_ids = list(range(n_gpu_use))
         return device, list_ids
 
@@ -165,7 +165,7 @@ class Trainer(BaseTrainer):
         for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.train_dataloader):
             images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(self.device), reports_masks.to(
                 self.device)
-            output = self.model(images, reports_ids, mode='train')
+            output = self.model(images, reports_ids, mask=reports_masks, mode='train')
             loss = self.criterion(output, reports_ids, reports_masks)
             train_loss += loss.item()
             self.optimizer.zero_grad()
@@ -192,7 +192,8 @@ class Trainer(BaseTrainer):
                             self.device), reports_masks.to(self.device)
                         output = self.model(images, mode='sample')
                         reports = self.model.tokenizer.decode_batch(output.cpu().numpy())
-                        ground_truths = self.model.tokenizer.decode_batch(reports_ids[:, 1:].cpu().numpy())
+                        # ground_truths = self.model.tokenizer.decode_batch(reports_ids[:, 1:].cpu().numpy())
+                        ground_truths = self.model.tokenizer.decode_batch(reports_ids.cpu().numpy())
                         val_res.extend(reports)
                         val_gts.extend(ground_truths)
                         gt_writer=csv.writer(gtss)

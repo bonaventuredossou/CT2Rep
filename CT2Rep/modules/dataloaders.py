@@ -34,8 +34,10 @@ class R2DataLoader(DataLoader):
         for i, report_ids in enumerate(reports_ids):
             targets[i, :len(report_ids)] = report_ids
 
-        for i, report_masks in enumerate(reports_masks):
-            targets_masks[i, :len(report_masks)] = report_masks
+        # for i, report_masks in enumerate(reports_masks):
+        #     targets_masks[i, :len(report_masks)] = report_masks
+        # we got already the tgt attention mask from the tokenizer
 
-        return images_id, images, torch.LongTensor(targets), torch.FloatTensor(targets_masks)
+        # return images_id, images, torch.LongTensor(targets), torch.FloatTensor(targets_masks)
+        return images_id, images, torch.LongTensor(targets), torch.FloatTensor(reports_masks)
 

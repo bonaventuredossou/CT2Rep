@@ -11,6 +11,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .att_model import pack_wrapper, AttModel
+import os
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:4096'
 
 
 def clones(module, N):
@@ -427,11 +429,13 @@ class EncoderDecoderPretrained(AttModel):
         self.rm_num_heads = args.rm_num_heads
         self.rm_d_model = args.rm_d_model
         self.pretrained_decoder = tokenizer.get_pretrained_components()[0]
+        self.pretrained_decoder.gradient_checkpointing_enable()
 
-        tgt_vocab = self.vocab_size + 1
+        tgt_vocab = self.vocab_size # +1 was added because original code added eos, bos, pad as index 0 - here we do not need this
 
         self.model = self.make_enc_model()
-        self.logit = nn.Linear(args.d_model, tgt_vocab)
+        # self.logit = nn.Linear(args.d_model, tgt_vocab) # not needed, the decoder already gives us (bs, seq_lenth, vocab size) 
+        # which is expected after this linear transformation
 
     def init_hidden(self, bsz):
         return []
@@ -464,17 +468,36 @@ class EncoderDecoderPretrained(AttModel):
 
         return att_feats, seq, att_masks, seq_mask
 
-    def _forward(self, fc_feats, att_feats, seq, att_masks=None):
+    def _forward(self, fc_feats, att_feats, seq, att_masks=None, tgt_mask=None, mode='forward'):
 
         att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(att_feats, att_masks, seq)
         encodings = self.model(att_feats, att_masks)
         
-        src, tgt, src_mask, tgt_mask
-        att_feats, seq, att_masks, seq_mask
-        
-        decodings = self.pretrained_decoder(inputs_embeds=encodings, attention_mask=seq_mask, return_dict=True, labels=seq)
+        encoder_attention_mask = torch.ones((encodings.shape[0], encodings.shape[1])).to(encodings.device)
+        combined_attention_mask = torch.cat((encoder_attention_mask, tgt_mask), dim=1)         
+
+        target_embeddings = torch.randn(encodings.shape[0], self.args.max_seq_length, encodings.shape[-1]).to(encodings.device)
+        concatenated_embeddings = torch.cat((encodings, target_embeddings), dim=1)
+        decoder_inputs = {'inputs_embeds': concatenated_embeddings, 'attention_mask': combined_attention_mask}
+
+        print('Input Embeddings Shape: {}'.format(encodings.shape))
+        print('Target Embeddings Shape: {}'.format(target_embeddings.shape))
+        print('Combined Embedding Shape: {}'.format(concatenated_embeddings.shape))
+        print('Combined Attention Mask: {}'.format(combined_attention_mask.shape))
+
+        decodings = self.pretrained_decoder(**decoder_inputs, return_dict=True)
+
+        # print('Keys', decodings.keys())
+
         out = decodings.logits
-        outputs = F.log_softmax(self.logit(out), dim=-1)
+
+        # print('Here: {}'.format(out.shape))
+
+        # Extract the logits corresponding to the target sequence length (300)
+        out = out[:, -self.args.max_seq_length:, :]
+        # outputs = F.log_softmax(self.logit(out), dim=-1)
+        print('Output Shape: {}'.format(out.shape))
+        outputs = F.log_softmax(out, dim=-1)
         return outputs
 
     def core(self, it, fc_feats_ph, att_feats_ph, memory, state, mask):

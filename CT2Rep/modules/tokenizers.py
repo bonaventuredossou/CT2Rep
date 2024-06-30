@@ -3,15 +3,16 @@ import re
 from collections import Counter
 import pandas as pd
 from transformers import LlamaTokenizer, LlamaForCausalLM
+import torch
 
 class Tokenizer(object):
     def __init__(self, args):
         self.threshold = args.threshold
         self.args = args
-        self.pretrained_tokenizer = LlamaTokenizer.from_pretrained(args.llama_model)
-        self.pretrained_model = LlamaForCausalLM.from_pretrained(args.llama_model)
+        self.pretrained_tokenizer = LlamaTokenizer.from_pretrained(args.llama_model, cache_dir="/network/scratch/b/bonaventure.dossou")
+        self.pretrained_model = LlamaForCausalLM.from_pretrained(args.llama_model, cache_dir="/network/scratch/b/bonaventure.dossou", torch_dtype=torch.float32)
         self.clean_report = self.clean_report_mimic_cxr
-        self.accession_to_text = self.load_accession_text(args.xlsxfile)
+        self.accession_to_text = self.load_accession_text()
 
         self.token2idx, self.idx2token = self.create_vocabulary()
 
@@ -24,11 +25,20 @@ class Tokenizer(object):
             json.dump(self.token2idx, json_file)
 
 
-    def load_accession_text(self, xlsx_file):
-        df = pd.read_csv(xlsx_file[0])
+    def load_accession_text(self):
+        train_file = self.args.xlsxfile_train
+        valid_file = self.args.xlsxfile_val
+
+        df_train = pd.read_csv(train_file)
+        df_val = pd.read_csv(valid_file)
+
         accession_to_text = {}
-        for index, row in df.iterrows():
-            accession_to_text[row['AccessionNo']] = row["Findings_EN"].lower()
+        for index, row in df_train.iterrows():
+            accession_to_text[row['VolumeName']] = str(row["Findings_EN"]).lower()
+
+        for index, row in df_val.iterrows():
+            accession_to_text[row['VolumeName']] = str(row["Findings_EN"]).lower()
+
         return accession_to_text
 
     def create_vocabulary(self):
@@ -118,24 +128,27 @@ class Tokenizer(object):
         return len(self.token2idx)
 
     def __call__(self, report):
-        tokens = ['<s>'] + self.clean_report(report).split() + ['</s>']
-        ids = []
-        for token in tokens:
-            ids.append(self.get_id_by_token(token))
+        # tokens = ['<s>'] + self.clean_report(report).split() + ['</s>']
+        cleaned_report = self.clean_report(report)
+        # ids = []
+        # for token in tokens:
+        #     ids.append(self.get_id_by_token(token))
         # ids = [0] + ids + [0]
-        # tokenized = self.pretrained_tokenizer(tokens, return_attention_mask=False, add_special_tokens=True)
-        return ids # tokenized['input_ids'] # ids
+        tokenized = self.pretrained_tokenizer(cleaned_report, max_length=self.args.max_seq_length,
+            truncation=True, padding="max_length", return_attention_mask=True, add_special_tokens=True)
+        return tokenized # tokenized['input_ids'] # ids
 
     def decode(self, ids):
-        txt = ''
-        for i, idx in enumerate(ids):
-            if idx > 0:
-                if i >= 1:
-                    txt += ' '
-                txt += self.idx2token[idx]
-            else:
-                break
-        return txt
+        # txt = ''
+        # for i, idx in enumerate(ids):
+        #     if idx > 0:
+        #         if i >= 1:
+        #             txt += ' '
+        #         txt += self.idx2token[idx]
+        #     else:
+        #         break
+        return self.pretrained_tokenizer.decode(ids)
+        # return txt
 
     def decode_batch(self, ids_batch):
         out = []

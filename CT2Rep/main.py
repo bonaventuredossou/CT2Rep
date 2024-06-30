@@ -101,6 +101,9 @@ def main():
     train_ds = CTReportDataset(args,data_folder=args.trainfolder, xlsx_file=args.xlsxfile_train, tokenizer=tokenizer, num_frames=2)
     valid_ds  = CTReportDataset(args,data_folder=args.validfolder, xlsx_file=args.xlsxfile_val, tokenizer=tokenizer, num_frames=2)
 
+    print('Train Dataset: {}'.format(len(train_ds)))
+    print('Valid Dataset: {}'.format(len(valid_ds)))
+
     # create data loader
     train_dataloader = R2DataLoader(args, train_ds, tokenizer, split='train', shuffle=True)
     val_dataloader = R2DataLoader(args, valid_ds, tokenizer, split='val', shuffle=False)

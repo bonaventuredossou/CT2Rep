@@ -41,32 +41,27 @@ class CTReportDataset(Dataset):
 
     def load_accession_text(self, xlsx_file):
         # df = pd.read_excel(xlsx_file)
-        df = pd.read_csv(xlsx_file[0])
+        df = pd.read_csv(xlsx_file)
         accession_to_text = {}
         for index, row in df.iterrows():
-            accession_to_text[row['AccessionNo']] = row["Findings_EN"].lower()
+            accession_to_text[row['VolumeName']] = str(row["Findings_EN"]).lower()
         return accession_to_text
 
 
     def prepare_samples(self):
         samples = []
-        for patient_folder in tqdm.tqdm(glob.glob(os.path.join(self.data_folder[0], '*'))):
+
+        for patient_folder in tqdm.tqdm(glob.glob(os.path.join(self.data_folder, '*'))):            
             for accession_folder in glob.glob(os.path.join(patient_folder, '*')):
-                accession_number = os.path.basename(accession_folder)
-                if accession_number not in self.accession_to_text:
-                    continue
-
-                impression_text = self.accession_to_text[accession_number]
-
+                # glob.glob(os.path.join(accession_folder, '*.npz'))
                 for nii_file in glob.glob(os.path.join(accession_folder, '*.nii.gz')):
-                    # Construct the input text with the included metadata
-                    if impression_text == "Not given.":
-                        impression_text=""
+                    accession_number = nii_file.split("/")[-1]
+                    # accession_number = accession_number.replace(".npz", ".nii.gz")
+                    if accession_number not in self.accession_to_text:
+                        continue
 
-                    input_text_concat = str(impression_text)
-
-                    input_text = f'{input_text_concat}'
-                    samples.append((nii_file, input_text_concat))
+                    findings_text = self.accession_to_text[accession_number]
+                    samples.append((nii_file, findings_text))
                     self.paths.append(nii_file)
 
         return samples
@@ -75,7 +70,14 @@ class CTReportDataset(Dataset):
         return len(self.samples)
 
     def nii_img_to_tensor(self, path, transform):
-        img_data = np.load(path)["arr_0"]
+        try:
+            img_data = np.load(path, allow_pickle=True)['arr_0']
+        except:
+            try:
+                img_data = np.load(path, allow_pickle=True)["data"]
+            except:
+                nii_img = nib.load(str(path))
+                img_data = nii_img.get_fdata()
     
         img_data= np.transpose(img_data, (1, 2, 0))
         img_data = img_data*1000
@@ -126,8 +128,11 @@ class CTReportDataset(Dataset):
         img, text = self.samples[index]
         img_id = img.split("/")[-1]
         tensor = self.nii_to_tensor(img)
-        ids = self.tokenizer(text)[:self.max_seq_length]
-        mask = [1] * len(ids)
+        
+        tokenized = self.tokenizer(text)
+        ids = tokenized['input_ids']
+        # mask = [1] * len(ids)
+        mask = tokenized['attention_mask']
         seq_lenght = len(ids)
         sample = (img_id, tensor, ids, mask, seq_lenght)
         return sample
