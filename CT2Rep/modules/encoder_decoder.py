@@ -289,6 +289,8 @@ class RelationalMemory(nn.Module):
     def forward_step(self, input, memory):
         memory = memory.reshape(-1, self.num_slots, self.d_model)
         q = memory
+        print('Input', input.shape)
+        print('Memory', memory.shape)
         k = torch.cat([memory, input.unsqueeze(1)], 1)
         v = torch.cat([memory, input.unsqueeze(1)], 1)
         next_memory = memory + self.attn(q, k, v)
@@ -497,6 +499,11 @@ class EncoderDecoderPretrained(AttModel):
         out = out[:, -self.args.max_seq_length:, :]
         # outputs = F.log_softmax(self.logit(out), dim=-1)
         print('Output Shape: {}'.format(out.shape))
+        del att_feats, seq, att_masks, seq_mask, encodings
+        del encoder_attention_mask, combined_attention_mask, target_embeddings
+        del concatenated_embeddings, decoder_inputs
+        del decodings
+        torch.cuda.empty_cache()
         outputs = F.log_softmax(out, dim=-1)
         return outputs
 

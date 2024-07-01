@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from torchvision import transforms
 from torch.utils.data import DataLoader
-
+from torch.utils.data.distributed import DistributedSampler
 
 class R2DataLoader(DataLoader):
     def __init__(self, args, dataset, tokenizer, split, shuffle):
@@ -14,12 +14,14 @@ class R2DataLoader(DataLoader):
         self.split = split
 
         self.dataset = dataset
+        
         self.init_kwargs = {
             'dataset': self.dataset,
             'batch_size': self.batch_size,
-            'shuffle': self.shuffle,
+            # 'shuffle': self.shuffle,
             'collate_fn': self.collate_fn,
-            'num_workers': self.num_workers
+            'num_workers': self.num_workers,
+            'sampler': DistributedSampler(self.dataset)
         }
         super().__init__(**self.init_kwargs)
 

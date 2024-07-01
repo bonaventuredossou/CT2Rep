@@ -25,7 +25,7 @@ class CT2RepModel(nn.Module):
                 )
 
         self.visual_extractor = VisualExtractor(model, args)
-        self.encoder_decoder = EncoderDecoder(args, tokenizer) # EncoderDecoderPretrained(args, tokenizer) # EncoderDecoder(args, tokenizer)
+        self.encoder_decoder = EncoderDecoderPretrained(args, tokenizer) # EncoderDecoder(args, tokenizer)
         self.forward = self.forward_ct2rep
 
     def __str__(self):
@@ -38,8 +38,8 @@ class CT2RepModel(nn.Module):
         att_feats, fc_feats = self.visual_extractor(images) # torch.Size([1, 512, 20, 20, 20])
         if mode == 'train':
             # follwoing is for LLM usage
-            # output = self.encoder_decoder(fc_feats, att_feats, targets, tgt_mask=mask, mode='forward')
-            output = self.encoder_decoder(fc_feats, att_feats, targets, mode='forward')
+            output = self.encoder_decoder(fc_feats, att_feats, targets, tgt_mask=mask, mode='forward')
+            # output = self.encoder_decoder(fc_feats, att_feats, targets, mode='forward')
 
         elif mode == 'sample':
             output, _ = self.encoder_decoder(fc_feats, att_feats, mode='sample')

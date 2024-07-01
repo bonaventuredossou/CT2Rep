@@ -9,6 +9,17 @@ from modules.trainer import Trainer
 from modules.loss import compute_loss
 from models.ct2rep import CT2RepModel
 from modules.data_ct import CTReportDataset
+import os
+import torch.distributed as dist
+
+def setup_distributed():
+    """
+    Initialize the distributed training environment.
+    """
+    # os.environ['MASTER_ADDR'] = 'localhost'
+    # os.environ['MASTER_PORT'] = '12355'
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+    dist.init_process_group(backend='nccl')
 
 def parse_agrs():
 
@@ -25,8 +36,8 @@ def parse_agrs():
 
 
     # Model settings (for Transformer)
-    # parser.add_argument('--d_model', type=int, default=512, help='the dimension of Transformer.')
     parser.add_argument('--d_model', type=int, default=4096, help='the dimension of Transformer.')
+    # parser.add_argument('--d_model', type=int, default=512, help='the dimension of Transformer.')
     parser.add_argument('--d_ff', type=int, default=512, help='the dimension of FFN.')
     parser.add_argument('--d_vf', type=int, default=512, help='the dimension of the patch features.')
     parser.add_argument('--num_heads', type=int, default=8, help='the number of heads in Transformer.')
@@ -125,4 +136,5 @@ def main():
 
 
 if __name__ == '__main__':
+    setup_distributed()
     main()
