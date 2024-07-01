@@ -16,13 +16,13 @@ class BaseTrainer(object):
         self.model = model.to(self.device)
         if len(device_ids) > 1:
             
-            local_rank = int(os.environ['LOCAL_RANK'])
-            torch.cuda.set_device(local_rank)
-            self.device = torch.device(f"cuda:{local_rank}")
-            self.model.to(device)
-            self.model = torch.nn.parallel.DistributedDataParallel(model)
-            self.model = self.model.module if len(device_ids) > 1 else self.model
-            # self.model = torch.nn.DataParallel(model, device_ids=device_ids)
+            # local_rank = int(os.environ['LOCAL_RANK'])
+            # torch.cuda.set_device(local_rank)
+            # self.device = torch.device(f"cuda:{local_rank}")
+            # self.model.to(self.device)
+            # self.model = torch.nn.parallel.DistributedDataParallel(model)
+            # self.model = self.model.module if len(device_ids) > 1 else self.model
+            self.model = torch.nn.DataParallel(model, device_ids=device_ids)
 
         self.criterion = criterion
         self.metric_ftns = metric_ftns
@@ -157,7 +157,7 @@ class BaseTrainer(object):
 
 class Trainer(BaseTrainer):
     def __init__(self, model, criterion, metric_ftns, optimizer, args, lr_scheduler, train_dataloader, val_dataloader,
-                 test_dataloader, max_split_size_mb=2048):
+                 test_dataloader, max_split_size_mb=128):
         super(Trainer, self).__init__(model, criterion, metric_ftns, optimizer, args)
         self.lr_scheduler = lr_scheduler
         self.train_dataloader = train_dataloader

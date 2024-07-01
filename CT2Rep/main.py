@@ -18,7 +18,7 @@ def setup_distributed():
     """
     # os.environ['MASTER_ADDR'] = 'localhost'
     # os.environ['MASTER_PORT'] = '12355'
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4"
     dist.init_process_group(backend='nccl')
 
 def parse_agrs():
@@ -136,5 +136,5 @@ def main():
 
 
 if __name__ == '__main__':
-    setup_distributed()
+    # setup_distributed()
     main()

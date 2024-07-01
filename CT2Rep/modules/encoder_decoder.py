@@ -9,11 +9,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from .att_model import pack_wrapper, AttModel
-import os
-os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:4096'
-
 
 def clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
@@ -124,7 +120,6 @@ class Decoder(nn.Module):
         self.norm = LayerNorm(layer.d_model)
 
     def forward(self, x, hidden_states, src_mask, tgt_mask, memory):
-        print(x.shape)
         for layer in self.layers:
             x = layer(x, hidden_states, src_mask, tgt_mask, memory)
         return self.norm(x)

@@ -18,10 +18,10 @@ class R2DataLoader(DataLoader):
         self.init_kwargs = {
             'dataset': self.dataset,
             'batch_size': self.batch_size,
-            # 'shuffle': self.shuffle,
+            'shuffle': self.shuffle,
             'collate_fn': self.collate_fn,
             'num_workers': self.num_workers,
-            'sampler': DistributedSampler(self.dataset)
+            # 'sampler': DistributedSampler(self.dataset)
         }
         super().__init__(**self.init_kwargs)
 

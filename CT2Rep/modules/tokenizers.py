@@ -5,6 +5,27 @@ import pandas as pd
 from transformers import LlamaTokenizer, LlamaForCausalLM
 import torch
 
+class CustomTokenizer:
+    def __init__(self, vocab):
+        self.vocab = vocab
+        self.token_to_id = {token: idx for idx, token in enumerate(vocab)}
+        self.id_to_token = {idx: token for idx, token in enumerate(vocab)}
+        self.pretrained_vocab = None
+
+    def add_pretrained_tokenizer(self, pretrained_vocab):
+        self.pretrained_vocab = pretrained_vocab
+
+    def encode(self, text):
+        tokens = text.split()  # Simple whitespace tokenizer; adjust as needed
+        return [self.token_to_id[token] for token in tokens if token in self.token_to_id]
+
+    def decode(self, ids):
+        return ' '.join([self.id_to_token[id] for id in ids])
+
+    def __len__(self):
+        return len(self.vocab)
+
+
 class Tokenizer(object):
     def __init__(self, args):
         self.threshold = args.threshold
@@ -13,7 +34,7 @@ class Tokenizer(object):
         self.pretrained_model = LlamaForCausalLM.from_pretrained(args.llama_model, cache_dir="/network/scratch/b/bonaventure.dossou", torch_dtype=torch.float32)
         self.clean_report = self.clean_report_mimic_cxr
         self.accession_to_text = self.load_accession_text()
-
+        self.tokenizer = None
         self.token2idx, self.idx2token = self.create_vocabulary()
 
         with open("idx2token.json", 'w') as json_file:
@@ -51,39 +72,51 @@ class Tokenizer(object):
                 total_tokens.append(token)
 
         counter = Counter(total_tokens)
-        vocab = [k for k, v in counter.items() if v >= self.threshold] + ['<unk>']
+        eos_token = self.pretrained_tokenizer.eos_token
+        bos_token = self.pretrained_tokenizer.bos_token
+        unk_token = self.pretrained_tokenizer.unk_token
+        pad_token = self.pretrained_tokenizer.pad_token
+
+        vocab = [k for k, v in counter.items() if v >= self.threshold]
         vocab.sort()
+        vocab = [eos_token, bos_token, unk_token] + vocab # eos == padding
 
-        # token2idx, idx2token = {}, {}
-        # for idx, token in enumerate(vocab):
-        #     token2idx[token] = idx + 1
-        #     idx2token[idx + 1] = token
-        
         print('CT-RATE Dataset Tokens Size: {}'.format(len(vocab)))        
-
-        # Check and filter new tokens
-        existing_tokens = set(self.pretrained_tokenizer.get_vocab().keys())
-        tokens_to_add = [token for token in vocab if token not in existing_tokens]
+        print('CT-RATE Dataset Special Tokens: {}'.format(vocab[:3]))        
 
         # Add new tokens to the tokenizer
-        if tokens_to_add:
-            num_added_tokens = self.pretrained_tokenizer.add_tokens(tokens_to_add)
-        else:
-            num_added_tokens = 0
+        num_added_tokens = self.pretrained_tokenizer.add_tokens(vocab, special_tokens=True)
 
         # Resize model's embeddings if new tokens were added
         if num_added_tokens > 0:
             print('Adding {} new tokens to {} pretrained tokenizer'.format(num_added_tokens, self.args.llama_model))
-            self.pretrained_model.resize_token_embeddings(len(self.pretrained_tokenizer))
+            # Extract the original embeddings
+            original_embeddings = self.pretrained_model.get_input_embeddings().weight.data
+            # Create new embeddings for the selected tokens
+            new_embeddings = torch.zeros((len(vocab), self.pretrained_model.config.hidden_size))
+            # Map the selected token embeddings to the new embeddings matrix
+            for idx, token in enumerate(vocab):
+                # we need to make sure we take the token that exist in the original embeddings
+                try:
+                    if token in self.pretrained_tokenizer.get_vocab():                    
+                        new_embeddings[idx] = original_embeddings[self.pretrained_tokenizer.convert_tokens_to_ids(token)]
+                except:
+                    pass
+            # we resize the model embedding to the size of the new dictionary
+            self.pretrained_model.resize_token_embeddings(len(vocab))
+            # Assign the new embeddings to the model
+            self.pretrained_model.get_input_embeddings().weight = torch.nn.Parameter(new_embeddings)
+            # Adjust the output layer of the model to match the new vocabulary size
+            self.pretrained_model.lm_head = torch.nn.Linear(self.pretrained_model.config.hidden_size, len(vocab), bias=False)
+            self.pretrained_model.tie_weights()
 
-            # Initialize new token embeddings
-            new_token_ids = self.pretrained_tokenizer.convert_tokens_to_ids(tokens_to_add)
-            existing_embeddings = self.pretrained_model.get_input_embeddings().weight.data
-            new_embeddings = existing_embeddings.mean(dim=0, keepdim=True).repeat(len(tokens_to_add), 1)
-            self.pretrained_model.get_input_embeddings().weight.data[new_token_ids] = new_embeddings
+        ct_tokenizer = CustomTokenizer(vocab)        
+        pretrained_dict = {self.pretrained_tokenizer.convert_tokens_to_ids(token): idx for idx, token in enumerate(vocab)}
+        ct_tokenizer.add_pretrained_tokenizer(pretrained_dict)
+        self.tokenizer = ct_tokenizer
 
-        token2idx = self.pretrained_tokenizer.get_vocab()
-        idx2token = {idx: token for token, idx in token2idx.items()}
+        token2idx = self.tokenizer.token_to_id
+        idx2token = self.tokenizer.id_to_token
 
         return token2idx, idx2token
 
@@ -128,27 +161,20 @@ class Tokenizer(object):
         return len(self.token2idx)
 
     def __call__(self, report):
-        # tokens = ['<s>'] + self.clean_report(report).split() + ['</s>']
         cleaned_report = self.clean_report(report)
-        # ids = []
-        # for token in tokens:
-        #     ids.append(self.get_id_by_token(token))
-        # ids = [0] + ids + [0]
         tokenized = self.pretrained_tokenizer(cleaned_report, max_length=self.args.max_seq_length,
             truncation=True, padding="max_length", return_attention_mask=True, add_special_tokens=True)
-        return tokenized # tokenized['input_ids'] # ids
+        
+        input_ids_pretrained = tokenized['input_ids']
+        input_ids_mapped = [self.tokenizer.pretrained_vocab[pretrained_token] for pretrained_token in input_ids_pretrained]
+
+        # we need to map the pretrained tokenizer tokens to the token of the customm tokenizer
+        remapped_tokenizer = {'input_ids': input_ids_mapped, 'attention_mask': tokenized['attention_mask']}
+        del tokenized
+        return remapped_tokenizer
 
     def decode(self, ids):
-        # txt = ''
-        # for i, idx in enumerate(ids):
-        #     if idx > 0:
-        #         if i >= 1:
-        #             txt += ' '
-        #         txt += self.idx2token[idx]
-        #     else:
-        #         break
-        return self.pretrained_tokenizer.decode(ids)
-        # return txt
+        return self.tokenizer.decode(ids)
 
     def decode_batch(self, ids_batch):
         out = []
