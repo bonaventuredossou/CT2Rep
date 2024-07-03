@@ -22,7 +22,7 @@ def setup_distributed():
     """
     # os.environ['MASTER_ADDR'] = 'localhost'
     # os.environ['MASTER_PORT'] = '12355'
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
     dist.init_process_group(backend='nccl')
 
 import lightning.pytorch as pl
@@ -353,7 +353,7 @@ def main():
 
     # get function handles of loss and metrics
     criterion = compute_loss
-    # metrics = compute_scores
+    metrics = compute_scores
 
     # build optimizer, learning rate scheduler
     optimizer = build_optimizer(args, model)
@@ -376,5 +376,5 @@ def main():
 
 
 if __name__ == '__main__':
-    # setup_distributed()
+    setup_distributed()
     main()

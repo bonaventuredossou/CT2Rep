@@ -191,6 +191,7 @@ import pandas as pd
 class Tokenizer(object):
     def __init__(self, args):
         self.threshold = args.threshold
+        self.args = args
         self.clean_report = self.clean_report_mimic_cxr
         self.accession_to_text = self.load_accession_text()
 

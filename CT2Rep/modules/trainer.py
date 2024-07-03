@@ -6,6 +6,7 @@ import torch
 import pandas as pd
 from numpy import inf
 import csv
+from tqdm import tqdm
 
 class BaseTrainer(object):
     def __init__(self, model, criterion, metric_ftns, optimizer, args):
@@ -15,14 +16,15 @@ class BaseTrainer(object):
         self.device, device_ids = self._prepare_device(args.n_gpu)
         self.model = model.to(self.device)
         if len(device_ids) > 1:            
-            # local_rank = int(os.environ['LOCAL_RANK'])
-            # torch.cuda.set_device(local_rank)
-            # self.device = torch.device(f"cuda:{local_rank}")
-            # self.model.to(self.device)
-            # self.model = torch.nn.parallel.DistributedDataParallel(model)
-            # self.model = self.model.module if len(device_ids) > 1 else self.model
-            self.model = torch.nn.DataParallel(model, device_ids=device_ids)
-
+            local_rank = int(os.environ['LOCAL_RANK'])
+            torch.cuda.set_device(local_rank)
+            self.device = torch.device(f"cuda:{local_rank}")
+            self.model.to(self.device)
+            self.model = torch.nn.parallel.DistributedDataParallel(model)
+            # self.model = torch.nn.DataParallel(model, device_ids=device_ids)
+            self.model = self.model.module if len(device_ids) > 1 else self.model
+        
+        # self.model.to(self.device)
         self.criterion = criterion
         self.metric_ftns = metric_ftns
         self.optimizer = optimizer
@@ -212,7 +214,7 @@ class Trainer(BaseTrainer):
 
         train_loss = 0
         self.model.train()
-        for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.train_dataloader):
+        for (images_id, images, reports_ids, reports_masks) in tqdm(self.train_dataloader, total=len(self.train_dataloader), desc="Running Training"):
             images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(self.device), reports_masks.to(
                 self.device)
             output = self.model(images, reports_ids, mask=reports_masks, mode='train')
@@ -237,13 +239,13 @@ class Trainer(BaseTrainer):
 
                with open(gts,"w",newline="") as gtss:
                 with open(res,"w",newline="") as ress:
-                   for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.val_dataloader): # dunno why they used the test set here # (self.test_dataloader)
+                   for (images_id, images, reports_ids, reports_masks) in tqdm(self.val_dataloader, total=len(self.val_dataloader), desc="Running Evaluation"): # dunno why they used the test set here # (self.test_dataloader)
                         images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(
                             self.device), reports_masks.to(self.device)
                         output = self.model(images, mode='sample')
                         reports = self.model.tokenizer.decode_batch(output.cpu().numpy())
-                        # ground_truths = self.model.tokenizer.decode_batch(reports_ids[:, 1:].cpu().numpy())
-                        ground_truths = self.model.tokenizer.decode_batch(reports_ids.cpu().numpy())
+                        ground_truths = self.model.tokenizer.decode_batch(reports_ids[:, 1:].cpu().numpy())
+                        # ground_truths = self.model.tokenizer.decode_batch(reports_ids.cpu().numpy())
                         val_res.extend(reports)
                         val_gts.extend(ground_truths)
                         gt_writer=csv.writer(gtss)
