@@ -14,8 +14,7 @@ class BaseTrainer(object):
         # setup GPU device if available, move model into configured device
         self.device, device_ids = self._prepare_device(args.n_gpu)
         self.model = model.to(self.device)
-        if len(device_ids) > 1:
-            
+        if len(device_ids) > 1:            
             # local_rank = int(os.environ['LOCAL_RANK'])
             # torch.cuda.set_device(local_rank)
             # self.device = torch.device(f"cuda:{local_rank}")
@@ -122,10 +121,54 @@ class BaseTrainer(object):
         filename = os.path.join(self.checkpoint_dir, f'current_checkpoint_{epoch}.pth')
         torch.save(state, filename)
         print("Saving checkpoint: {} ...".format(filename))
+
+        state_ve = {
+            'epoch': epoch,
+            'state_dict': self.model.visual_encoder.state_dict(),
+            'optimizer': self.optimizer.state_dict(),
+            'monitor_best': self.mnt_best
+        }
+        filename_ve = os.path.join(self.checkpoint_dir, f've_current_checkpoint_{epoch}.pth')
+        torch.save(state_ve, filename_ve)
+        print("Saving Visual Encoder checkpoint: {} ...".format(filename_ve))
+
+        state_enc = {
+            'epoch': epoch,
+            'state_dict': self.model.encoder_decoder.encoder.state_dict(),
+            'optimizer': self.optimizer.state_dict(),
+            'monitor_best': self.mnt_best
+        }
+        filename_enc = os.path.join(self.checkpoint_dir, f'enc_current_checkpoint_{epoch}.pth')
+        torch.save(state_enc, filename_enc)
+        print("Saving Transformer Encoder checkpoint: {} ...".format(filename_enc))
+
+        state_dec = {
+            'epoch': epoch,
+            'state_dict': self.model.encoder_decoder.decoder.state_dict(),
+            'optimizer': self.optimizer.state_dict(),
+            'monitor_best': self.mnt_best
+        }
+        filename_dec = os.path.join(self.checkpoint_dir, f'dec_current_checkpoint_{epoch}.pth')
+        torch.save(state_dec, filename_dec)
+        print("Saving Transformer Decoder checkpoint: {} ...".format(filename_dec))
+
         if save_best:
             best_path = os.path.join(self.checkpoint_dir, 'model_best.pth')
             torch.save(state, best_path)
             print("Saving current best: model_best.pth ...")
+
+            best_path_ve = os.path.join(self.checkpoint_dir, 'model_best_visual_encoder.pth')
+            torch.save(state_ve, best_path_ve)
+            print("Saving current best visual_encoder: model_best_visual_encoder.pth ...")
+
+            best_path_enc = os.path.join(self.checkpoint_dir, 'model_best_transformer_encoder.pth')
+            torch.save(state_enc, best_path_enc)
+            print("Saving current best transformer_encoder: model_best_transformer_encoder.pth ...")
+
+            best_path_dec = os.path.join(self.checkpoint_dir, 'model_best_transformer_decoder.pth')
+            torch.save(state_dec, best_path_dec)
+            print("Saving current best transformer_encoder: model_best_transformer_decoder.pth ...")
+
 
     def _resume_checkpoint(self, resume_path):
         resume_path = str(resume_path)
@@ -157,13 +200,13 @@ class BaseTrainer(object):
 
 class Trainer(BaseTrainer):
     def __init__(self, model, criterion, metric_ftns, optimizer, args, lr_scheduler, train_dataloader, val_dataloader,
-                 test_dataloader, max_split_size_mb=128):
+                 test_dataloader, max_split_size_mb=1024):
         super(Trainer, self).__init__(model, criterion, metric_ftns, optimizer, args)
         self.lr_scheduler = lr_scheduler
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
         self.test_dataloader = test_dataloader
-        os.environ['PYTORCH_CUDA_ALLOC_CONF'] = f'max_split_size_mb:{max_split_size_mb}'
+        # os.environ['PYTORCH_CUDA_ALLOC_CONF'] = f'max_split_size_mb:{max_split_size_mb}'
 
     def _train_epoch(self, epoch):
 

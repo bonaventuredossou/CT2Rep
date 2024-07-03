@@ -124,15 +124,31 @@ class CTReportDataset(Dataset):
         return tensor[0]
 
     
+    # def __getitem__(self, index):
+    #     img, text = self.samples[index]
+    #     image_id = img.split("/")[-1]
+    #     tensor = self.nii_to_tensor(img)
+    #     tokenized = self.tokenizer(text)
+    #     reports_ids = tokenized['input_ids']
+    #     reports_mask = tokenized['attention_mask']
+    #     seq_lenght = len(ids)
+    #     # sample = (img_id, tensor, ids, mask, seq_lenght)
+
+    #     images = torch.stack(tensor, 0)
+    #     targets = np.zeros((len(reports_ids), seq_lenght), dtype=int)
+
+    #     for i, report_ids in enumerate(reports_ids):
+    #         targets[i, :len(report_ids)] = report_ids
+
+    #     return images_id, images, torch.LongTensor(targets), torch.FloatTensor(reports_mask)
+    #     # return sample
+
     def __getitem__(self, index):
         img, text = self.samples[index]
         img_id = img.split("/")[-1]
         tensor = self.nii_to_tensor(img)
-        
-        tokenized = self.tokenizer(text)
-        ids = tokenized['input_ids']
-        # mask = [1] * len(ids)
-        mask = tokenized['attention_mask']
+        ids = self.tokenizer(text)[:self.max_seq_length]
+        mask = [1] * len(ids)
         seq_lenght = len(ids)
         sample = (img_id, tensor, ids, mask, seq_lenght)
         return sample
